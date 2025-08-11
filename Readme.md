@@ -1,10 +1,10 @@
-# Flask Course
-
-A comprehensive, text-based, industry-level course curriculum that takes a frontend React developer with general programming knowledge from beginner to expert in backend development using Flask.
-
-The course will cover all critical topics including API development, SQL and NoSQL databases, testing, security, deployment (backend and databases), performance optimization, and include hands-on projects and capstone assignments.
-
 # Flask Backend Mastery Course
+
+## Table of Contents
+- [Module 1: Introduction to Flask + First API](#module-1-introduction-to-flask--first-api)
+- [Module 2: Project Structure, Environment Management & App Factory Pattern](#module-2-project-structure-environment-management--app-factory-pattern)
+
+---
 
 ## Module 1: Introduction to Flask + First API
 
@@ -241,22 +241,313 @@ Create a `/api/time` route that returns current server time in JSON format.
 
 You're ready for **Module 2** if you can:
 
-- [x] Run a Flask app locally
-- [x] Create GET & POST routes
-- [x] Return JSON responses
-- [x] Handle request data (via `request.get_json()`)
+- ✅ Run a Flask app locally
+- ✅ Create GET & POST routes
+- ✅ Return JSON responses
+- ✅ Handle request data (via `request.get_json()`)
 
 ---
 
-## What's Next?
+# Module 2: Project Structure, Environment Management & App Factory Pattern
 
-**Module 2: Project Structure, Environment Management & App Factory Pattern**
+## 🎯 Learning Objectives
 
-In the next module, we'll cover:
-- Professional project structure
-- Environment configurations
-- Making Flask scalable from the start
-- App factory pattern implementation
+By the end of this module, you will:
+
+1. Understand why the "one `app.py` file" approach is bad for real apps
+2. Create a **modular Flask project** that can grow to dozens of routes
+3. Use **environment variables** for sensitive data and config
+4. Implement the **App Factory Pattern** to separate setup from runtime
+5. Add **request data validation** using `marshmallow` (or `pydantic`)
+6. Prepare your project for testing and deployment
+
+---
+
+## Table of Contents - Module 2
+
+1. [Why Project Structure Matters](#why-project-structure-matters)
+2. [Recommended Project Structure](#recommended-project-structure)
+3. [Environment Management](#environment-management)
+4. [App Factory Pattern](#app-factory-pattern)
+5. [Using Blueprints for Routes](#using-blueprints-for-routes)
+6. [Entry Point](#entry-point)
+7. [Request Data Validation](#request-data-validation)
+8. [Best Practices](#best-practices-module-2)
+9. [Exercises - Module 2](#exercises-module-2)
+10. [Checkpoint - Module 2](#checkpoint-module-2)
+
+---
+
+## Why Project Structure Matters
+
+The "single file" Flask app is fine for learning, but:
+
+- It mixes routes, config, and database code in one place → hard to maintain
+- Harder to test & debug
+- Doesn't scale for large APIs with many endpoints
+
+### Industry Rule:
+➡ **Organize by responsibility, not by type.**
+
+---
+
+## Recommended Project Structure
+
+We'll start with a **minimal professional setup**.
+
+```
+flask_course/
+│
+├── app/
+│   ├── __init__.py        # App factory
+│   ├── config.py          # Config classes
+│   ├── routes/
+│   │   ├── __init__.py
+│   │   ├── user_routes.py
+│   │   └── status_routes.py
+│   ├── models/            # DB models (later)
+│   ├── services/          # Business logic (later)
+│   └── validators/        # Marshmallow schemas
+│
+├── .env                   # Environment variables
+├── run.py                 # Entry point
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## Environment Management
+
+We'll use `python-dotenv` to load `.env` files.
+
+### Install Dependencies
+```bash
+pip install python-dotenv
+```
+
+### Create .env File
+**Important:** Don't commit this to GitHub!
+
+```env
+FLASK_ENV=development
+SECRET_KEY=supersecretkey123
+DATABASE_URL=postgresql://user:password@localhost:5432/mydb
+```
+
+### Create Configuration Classes
+
+**app/config.py**:
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()  # Load variables from .env
+
+class Config:
+    SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret")
+    DATABASE_URL = os.getenv("DATABASE_URL")
+
+class DevelopmentConfig(Config):
+    DEBUG = True
+
+class ProductionConfig(Config):
+    DEBUG = False
+```
+
+---
+
+## App Factory Pattern
+
+Instead of creating the Flask app directly in `app.py`, we create a **function** that returns an app — allowing for different configs in dev/prod/test.
+
+**app/__init__.py**:
+```python
+from flask import Flask
+from .config import DevelopmentConfig
+from .routes.user_routes import user_bp
+from .routes.status_routes import status_bp
+
+def create_app(config_class=DevelopmentConfig):
+    app = Flask(__name__)
+    app.config.from_object(config_class)
+
+    # Register blueprints (modular routes)
+    app.register_blueprint(user_bp, url_prefix="/api/users")
+    app.register_blueprint(status_bp, url_prefix="/api/status")
+
+    return app
+```
+
+---
+
+## Using Blueprints for Routes
+
+Instead of dumping routes in one file, we'll make **blueprints** for each domain.
+
+### User Routes
+**app/routes/user_routes.py**:
+```python
+from flask import Blueprint, request, jsonify
+
+user_bp = Blueprint("user", __name__)
+
+@user_bp.route("/", methods=["GET"])
+def list_users():
+    return jsonify({"users": ["Alice", "Bob", "Charlie"]})
+
+@user_bp.route("/", methods=["POST"])
+def create_user():
+    data = request.get_json()
+    return jsonify({"message": f"User {data['name']} created"}), 201
+```
+
+### Status Routes
+**app/routes/status_routes.py**:
+```python
+from flask import Blueprint, jsonify
+
+status_bp = Blueprint("status", __name__)
+
+@status_bp.route("/", methods=["GET"])
+def service_status():
+    return jsonify({
+        "service": "Flask API",
+        "status": "running",
+        "version": "2.0.0"
+    })
+```
+
+---
+
+## Entry Point
+
+**run.py**:
+```python
+from app import create_app
+
+app = create_app()
+
+if __name__ == "__main__":
+    app.run()
+```
+
+### Run the Application
+```bash
+python run.py
+```
+
+---
+
+## Request Data Validation
+
+We'll use **marshmallow** for clean, declarative validation.
+
+### Install Marshmallow
+```bash
+pip install marshmallow
+```
+
+### Create Validation Schema
+**app/validators/user_validator.py**:
+```python
+from marshmallow import Schema, fields, validate
+
+class UserSchema(Schema):
+    name = fields.String(required=True, validate=validate.Length(min=2))
+    email = fields.Email(required=True)
+```
+
+### Update User Routes with Validation
+**app/routes/user_routes.py**:
+```python
+from flask import Blueprint, request, jsonify
+from marshmallow import ValidationError
+from app.validators.user_validator import UserSchema
+
+user_bp = Blueprint("user", __name__)
+user_schema = UserSchema()
+
+@user_bp.route("/", methods=["POST"])
+def create_user():
+    json_data = request.get_json()
+    try:
+        validated_data = user_schema.load(json_data)
+    except ValidationError as err:
+        return jsonify({"errors": err.messages}), 400
+
+    return jsonify({
+        "message": "User created successfully",
+        "user": validated_data
+    }), 201
+```
+
+### Testing Validation
+
+**Invalid data example:**
+```json
+{
+    "name": "A",
+    "email": "invalid-email"
+}
+```
+
+**Response:**
+```json
+{
+    "errors": {
+        "name": ["Length must be at least 2."],
+        "email": ["Not a valid email address."]
+    }
+}
+```
+
+---
+
+## Best Practices - Module 2
+
+Follow these practices for professional Flask development:
+
+- ✅ Use `.env` for **all secrets** — never commit them
+- ✅ Keep routes **modular** using blueprints
+- ✅ Always validate **incoming data** — don't trust clients
+- ✅ Use App Factory for **flexible configs**
+- ✅ Write configs as **classes**, not inline in `__init__.py`
+
+---
+
+## Exercises - Module 2
+
+Complete these exercises to master modular Flask development:
+
+### Exercise 1: Products Blueprint
+Create a `/api/products` blueprint with GET and POST routes.
+
+### Exercise 2: Product Validation
+Validate POST data for products:
+- `name` (minimum 3 characters)
+- `price` (float > 0)
+
+### Exercise 3: Production Environment
+1. Create a `.env.production` file with different settings
+2. Run Flask using production configuration
+
+### Exercise 4: Debug Route
+Add a `/api/debug` route that returns current app configuration in JSON (for development only).
+
+**Hint:** Use `app.config` to access configuration values.
+
+---
+
+## ✅ Checkpoint - Module 2
+
+You're ready for **Module 3** if you can:
+
+- [x] Create a project using **App Factory Pattern**
+- [x] Use **blueprints** for modular routing
+- [x] Store config in `.env` files
+- [x] Validate request data using marshmallow
+- [x] Structure your project professionally
 
 ---
 
